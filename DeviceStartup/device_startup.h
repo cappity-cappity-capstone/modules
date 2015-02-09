@@ -1,9 +1,9 @@
-#ifndef __MODULE_STARTUP_H__
-#define __MODULE_STARTUP_H__
+#ifndef __DEVICE_STARTUP_H__
+#define __DEVICE_STARTUP_H__
 
-class ModuleStartup {
+class DeviceStartup {
 public:
-    ModuleStartup(unsigned int, char *);
+    DeviceStartup(unsigned int, char *);
 
     IPAddress listenForRemoteIP();
     IPAddress run();

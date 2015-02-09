@@ -1,11 +1,11 @@
-ModuleStartup::ModuleStartup(unsigned int port, char *message) {
+DeviceStartup::DeviceStartup(unsigned int port, char *message) {
     this.port = port;
     this.message = message;
 
     this.socket = UDP.begin(port);
 }
 
-IPAddress ModuleStartup::listenForRemoteIP() {
+IPAddress DeviceStartup::listenForRemoteIP() {
     Serial.println("Listening for an IP address");
     while (true) {
         IPAddress ip = this.run();
@@ -16,7 +16,7 @@ IPAddress ModuleStartup::listenForRemoteIP() {
     }
 }
 
-IPAddress ModuleStartup::run() {
+IPAddress DeviceStartup::run() {
     char msg[10];
     if (this.socket.parsePacket() > 0) {
         this.socket.read(msg, 10);
