@@ -1,10 +1,8 @@
 #include "DeviceStartup.h"
 
-DeviceStartup::DeviceStartup(unsigned int port, char *message) {
-    this->port = port;
-    this->message = message;
-
-    this->socket.begin(port);
+DeviceStartup::DeviceStartup(unsigned int port, char *message)
+ : port(port), message(message) {
+    this->socket.begin(this->port);
 }
 
 IPAddress DeviceStartup::listenForRemoteIP() {
