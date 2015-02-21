@@ -11,8 +11,10 @@ IPAddress DeviceStartup::listenForRemoteIP() {
         Serial.println("Looking for IP");
         IPAddress ip = this->run();
         if (!(ip == INADDR_NONE)) {
+            this->socket.stop();
             return ip;
         }
+        Spark.process();
         delay(500);
     }
 }
