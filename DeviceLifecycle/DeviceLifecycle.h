@@ -8,12 +8,18 @@ public:
     DeviceLifecycle(IPAddress, char*);
 
     bool performWatchdog();
-    bool getStatus(float *);
-    bool setStatus(float);
+    bool getState(float&);
+    bool setState(float);
 private:
+    void createWatchdogPath();
+    void createStatePath();
+
     IPAddress hostIp;
     char *deviceId;
     char *watchdogPath;
+    char *statePath;
+
+    float state;
 };
 
 #endif
