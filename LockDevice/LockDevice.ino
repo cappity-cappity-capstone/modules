@@ -1,9 +1,15 @@
 #include "DeviceStartup.h"
 #include "DeviceLifecycle.h"
+#include "SparkIntervalTimer.h"
 
 IPAddress ccsIpAddress;
 DeviceLifecycle *dl1;
-unsigned int nextTime = 0;
+
+volatile bool checkStatus = false;
+IntervalTimer statusTimer;
+
+float prevState;
+float state;
 
 void setup() {
     Serial.begin(9600);
@@ -17,46 +23,51 @@ void setup() {
     Serial.println(pings);
 
     dl1 = new DeviceLifecycle(ccsIpAddress, "lock1");
-}
 
-void performWatchdog(void) {
-    if (WiFi.ready()) {
-        Serial.print("CCS Ip address: ");
-        Serial.println(ccsIpAddress);
-        if (dl1->performWatchdog()) {
-            Serial.print("Watchdog: ");
-            Serial.println("Valid");
-        } else {
-            Serial.print("Watchdog: ");
-            Serial.println("Invalid");
-        }
-    }
-}
-
-void performStatusCheck(void) {
-    static float state;
-    Serial.print("Pinging IP: ");
-    Serial.println(ccsIpAddress);
-    if (WiFi.ready()) {
-        if (dl1->getState(state)) {
-            Serial.print("Status: ");
-            Serial.println(state);
-        } else {
-            Serial.print("Status: ");
-            Serial.println("Could not connect");
-        }
-    }
+    statusTimer.begin(setCheckStatus, 4000, hmSec);
 }
 
 void loop(void) {
-    Serial.println("Loop");
+    Spark.process();
 
-    if (nextTime > millis()) {
-        Spark.process();
-        return;
+    if (checkStatus) {
+        performStatusCheck();
+        checkStatus = false;
     }
+}
 
-    performStatusCheck();
+void setCheckStatus(void) {
+    Serial.println("Check status!");
+    checkStatus = true;
+}
 
-    nextTime = millis() + 5000;
+void performStatusCheck(void) {
+    Serial.print("Pinging IP: ");
+    Serial.println(ccsIpAddress);
+    if (WiFi.ready()) {
+        prevState = state;
+        if (dl1->getState(state)) {
+            if (compareState(state, prevState) != 0) {
+                Serial.print("New state: ");
+                Serial.println(state);
+                Serial.print("Previous state: ");
+                Serial.println(prevState);
+            } else {
+                Serial.println("Same state: ");
+                Serial.println(state);
+            }
+        } else {
+            Serial.println("Status: Could not connect");
+        }
+    }
+}
+
+unsigned char compareState(float a, float b) {
+    if ((a > 0.0 && b > 0.0) || (a == 0.0 && b == 0.0)) {
+        return 0;
+    } else if (a > 0.0) {
+        return -1;
+    } else {
+        return 1;
+    }
 }
