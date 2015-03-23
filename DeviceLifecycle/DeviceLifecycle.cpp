@@ -1,5 +1,4 @@
 #include "HttpClient.h"
-#include "JSMNSpark.h"
 #include "DeviceLifecycle.h"
 
 http_header_t headers[] = {
@@ -18,22 +17,32 @@ static const http_request_t emptyRequest = {0};
 static const http_response_t emptyResponse = {0};
 http_request_t request;
 http_response_t response;
+int ccsPort = 4567;
 
-DeviceLifecycle::DeviceLifecycle(IPAddress hostIp, char *deviceId)
+DeviceLifecycle::DeviceLifecycle(IPAddress hostIp, const char *deviceId)
  : hostIp(hostIp), deviceId(deviceId), isValid(false) {
-     createDevicePath();
-     createWatchdogPath();
-     createStatePath();
+     setCreateDevicePath();
+     setUpdateDevicePath();
+     setWatchdogPath();
+     setStatePath();
 }
 
-void DeviceLifecycle::createDevicePath() {
+void DeviceLifecycle::setCreateDevicePath() {
     char *devicePath = new char[80];
     strcpy(devicePath, "/api/devices/");
 
-    this->devicePath = devicePath;
+    this->createDevicePath = devicePath;
 }
 
-void DeviceLifecycle::createWatchdogPath() {
+void DeviceLifecycle::setUpdateDevicePath() {
+    char *devicePath = new char[80];
+    strcpy(devicePath, "/api/devices/");
+    strcat(devicePath, this->deviceId);
+
+    this->updateDevicePath = devicePath;
+}
+
+void DeviceLifecycle::setWatchdogPath() {
     char *watchdogPath = new char[80];
     strcpy(watchdogPath, "/api/devices/");
     strcat(watchdogPath, this->deviceId);
@@ -42,7 +51,7 @@ void DeviceLifecycle::createWatchdogPath() {
     this->watchdogPath = watchdogPath;
 }
 
-void DeviceLifecycle::createStatePath() {
+void DeviceLifecycle::setStatePath() {
     char *statePath = new char[80];
     strcpy(statePath, "/api/devices/");
     strcat(statePath, this->deviceId);
@@ -51,24 +60,59 @@ void DeviceLifecycle::createStatePath() {
     this->statePath = statePath;
 }
 
-void DeviceLifecycle::create(char *name, char *type) {
+void DeviceLifecycle::generateDeviceRequestBody(char *requestBody, char *name, char *type, char *ipAddress) {
+    char body[] = "{\"device_id\":\"%s\", \"name\":\"%s\", \"device_type\":\"%s\", \"ip_address\":\"%s\"}";
+    sprintf(requestBody, body, this->deviceId, name, type, ipAddress);
+}
+
+void DeviceLifecycle::generateIp(char *string, IPAddress ipAddress) {
+    sprintf(string, "%d.%d.%d.%d", ipAddress[0], ipAddress[1], ipAddress[2], ipAddress[3]);
+}
+
+bool DeviceLifecycle::create(char *name, char *type, IPAddress ipAddr) {
     request = emptyRequest;
     response = emptyResponse;
 
     request.ip = this->hostIp;
-    request.port = 4567;
-    request.path = this->devicePath;
+    request.port = ccsPort;
+    request.path = this->createDevicePath;
 
-    char body[] = "{\"device_id\":\"%s\", \"name\":\"%s\", \"device_type\":\"%s\"}";
-    char *requestBody = new char[80];
-    sprintf(requestBody, body, this->deviceId, name, type);
+    char *requestBody = new char[120];
+    char *ipAddrString = new char[16];
+    generateIp(ipAddrString, ipAddr);
+    generateDeviceRequestBody(requestBody, name, type, ipAddrString);
     request.body = requestBody;
 
     http.post(request, response, headers);
 
-    if (response.status == 201 || response.status == 409) {
+    if (response.status == 201) {
         this->isValid = true;
+        return true;
     }
+    return false;
+}
+
+bool DeviceLifecycle::update(char *name, char *type, IPAddress ipAddr) {
+    request = emptyRequest;
+    response = emptyResponse;
+
+    request.ip = this->hostIp;
+    request.port = ccsPort;
+    request.path = this->updateDevicePath;
+
+    char *requestBody = new char[100];
+    char *ipAddrString = new char[16];
+    generateIp(ipAddrString, ipAddr);
+    generateDeviceRequestBody(requestBody, name, type, ipAddrString);
+    request.body = requestBody;
+
+    http.put(request, response, headers);
+
+    if (response.status == 200) {
+        this->isValid = true;
+        return true;
+    }
+    return false;
 }
 
 bool DeviceLifecycle::performWatchdog() {
@@ -76,7 +120,7 @@ bool DeviceLifecycle::performWatchdog() {
     response = emptyResponse;
 
     request.ip = this->hostIp;
-    request.port = 4567;
+    request.port = ccsPort;
     request.path = this->watchdogPath;
 
     http.put(request, response, headers);
@@ -107,71 +151,26 @@ bool DeviceLifecycle::getState(float &state) {
     Serial.println("Starting request for: ");
     Serial.print(this->hostIp);
     Serial.print(":");
-    Serial.print(4567);
+    Serial.print(ccsPort);
     Serial.println(this->statePath);
 
     request.ip = this->hostIp;
     // Should be set to the local port we'll be listening on
-    request.port = 4567;
+    request.port = ccsPort;
     request.path = this->statePath;
 
     http.get(request, response, headers);
 
+    float nextState;
     if (response.status == 200) {
-        jsmn_parser p;
-        jsmntok_t tok[10];
-
-        jsmn_init(&p);
-
-        char *body = new char[response.body.length() + 1];
-
-        response.body.toCharArray(body, response.body.length() + 1);
-
-        Serial.print("Body: ");
-        Serial.println(body);
-
-        int r = jsmn_parse(&p, body, tok, 10);
-
-        bool ret = false;
-
-        if (r == JSMN_SUCCESS) {
-            int numItems = tok[0].size;
-            Serial.print("Num items: ");
-            Serial.println(numItems);
-            for (int i = 1; i < numItems + 1; i++) {
-                if (tok[i].type == JSMN_STRING) {
-                    char *token = new char[tok[i].size + 1];
-                    strlcpy(token, body + tok[i].start, (tok[i].end - tok[i].start + 1));
-                    Serial.print("String: ");
-                    Serial.println(token);
-
-                    switch(state_state_machine) {
-                        case get_state_start:
-                            if (strcmp(token, "state") == 0) {
-                                state_state_machine = get_state_key;
-                            } else {
-                                state_state_machine = get_state_start;
-                            }
-                            break;
-                        case get_state_key:
-                            this->prevState = state;
-                            state = atof(token);
-                            ret = (compareState(state, this->prevState) != 0);
-                            state_state_machine = get_state_start;
-                            break;
-                        default:
-                            state_state_machine = get_state_start;
-                    }
-                    delete[] token;
-                }
-            }
-            delete[] body;
-            return ret;
-        } else {
-            delete[] body;
-            Serial.println("Could not parse");
-            return false;
-        }
+        nextState = 0.0;
+    } else if (response.status == 201) {
+        nextState = 1.0;
+    }
+    bool ret = (compareState(nextState, this->prevState) != 0);
+    if (ret) {
+        this->prevState = state;
+        state = nextState;
         return true;
     } else {
         return false;
@@ -185,12 +184,12 @@ bool DeviceLifecycle::setState(float state) {
     Serial.println("Starting request for: ");
     Serial.print(this->hostIp);
     Serial.print(":");
-    Serial.print(4567);
+    Serial.print(ccsPort);
     Serial.println(this->statePath);
 
     request.ip = this->hostIp;
     // Should be set to the local port we'll be listening on
-    request.port = 4567;
+    request.port = ccsPort;
     request.path = this->statePath;
 
     // Setup the body
@@ -206,4 +205,16 @@ bool DeviceLifecycle::setState(float state) {
     } else {
         return false;
     }
+}
+
+void DeviceLifecycle::setPrevState(float state) {
+    this->prevState = state;
+}
+
+float DeviceLifecycle::getPrevState(void) {
+    return this->prevState;
+}
+
+const char *DeviceLifecycle::getDeviceId(void) {
+    return this->deviceId;
 }
