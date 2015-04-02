@@ -1,3 +1,6 @@
+SYSTEM_MODE(SEMI_AUTOMATIC);
+#define DEBUG_WIFI
+
 #include "DeviceStartup.h"
 #include "DeviceLifecycle.h"
 #include "SparkIntervalTimer.h"
@@ -20,6 +23,12 @@ IntervalTimer statusTimer;
 void setup() {
     Serial.begin(9600);
 
+    // semi-automatic mode doesn't connect automatically
+    WiFi.on();
+    WiFi.connect();
+
+    while (!WiFi.ready()) SPARK_WLAN_Loop();
+
     startupLifecycle = create_devices;
 
     DeviceStartup *ds = new DeviceStartup(10000, "HAL CCS");
@@ -33,14 +42,17 @@ void setup() {
 }
 
 void loop(void) {
+    // Check status
     if (startupLifecycle == check_status_when_ready) {
         if (checkStatus) {
             performStatusCheck();
             checkStatus = false;
         }
+    // Setup timer
     } else if (startupLifecycle == start_timer) {
         statusTimer.begin(setCheckStatus, 4000, hmSec);
         startupLifecycle = check_status_when_ready;
+    // Create devices
     } else if (startupLifecycle == create_devices) {
         if (!dl->isValid) {
             dl->create("Gas Valve", "gas_valve");

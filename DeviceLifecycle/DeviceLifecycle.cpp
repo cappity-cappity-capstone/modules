@@ -117,61 +117,16 @@ bool DeviceLifecycle::getState(float &state) {
 
     http.get(request, response, headers);
 
+    float nextState;
     if (response.status == 200) {
-        jsmn_parser p;
-        jsmntok_t tok[10];
+        nextState = 0.0;
+    } else if (response.status == 201) {
+        nextState = 1.0;
+    }
 
-        jsmn_init(&p);
-
-        char *body = new char[response.body.length() + 1];
-
-        response.body.toCharArray(body, response.body.length() + 1);
-
-        Serial.print("Body: ");
-        Serial.println(body);
-
-        int r = jsmn_parse(&p, body, tok, 10);
-
-        bool ret = false;
-
-        if (r == JSMN_SUCCESS) {
-            int numItems = tok[0].size;
-            Serial.print("Num items: ");
-            Serial.println(numItems);
-            for (int i = 1; i < numItems + 1; i++) {
-                if (tok[i].type == JSMN_STRING) {
-                    char *token = new char[tok[i].size + 1];
-                    strlcpy(token, body + tok[i].start, (tok[i].end - tok[i].start + 1));
-                    Serial.print("String: ");
-                    Serial.println(token);
-
-                    switch(state_state_machine) {
-                        case get_state_start:
-                            if (strcmp(token, "state") == 0) {
-                                state_state_machine = get_state_key;
-                            } else {
-                                state_state_machine = get_state_start;
-                            }
-                            break;
-                        case get_state_key:
-                            this->prevState = state;
-                            state = atof(token);
-                            ret = (compareState(state, this->prevState) != 0);
-                            state_state_machine = get_state_start;
-                            break;
-                        default:
-                            state_state_machine = get_state_start;
-                    }
-                    delete[] token;
-                }
-            }
-            delete[] body;
-            return ret;
-        } else {
-            delete[] body;
-            Serial.println("Could not parse");
-            return false;
-        }
+    if (compareState(nextState, this->prevState) != 0) {
+        this->prevState = state;
+        state = nextState;
         return true;
     } else {
         return false;
