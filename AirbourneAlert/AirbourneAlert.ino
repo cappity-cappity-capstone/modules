@@ -61,11 +61,17 @@ void performTriggerCheck(void) {
         // Triggered when low, not high
         if (buttonTriggered == LOW) {
             al->setTrigger(true);
+            digitalWrite(D7, HIGH);
         } else {
             sensorReading = analogRead(A6);
             voltage = vpu * (float)sensorReading;
 
             al->setTrigger((voltage > 1.9));
+            if (voltage > 1.9) {
+                digitalWrite(D7, HIGH);
+            } else {
+                digitalWrite(D7, LOW);
+            }
         }
     } else {
         Serial.println("Waiting for WiFi");
