@@ -1,5 +1,4 @@
 #include "HttpClient.h"
-#include "JSMNSpark.h"
 #include "DeviceLifecycle.h"
 
 http_header_t headers[] = {
@@ -24,7 +23,6 @@ unsigned int ccsPort = 8080;
 DeviceLifecycle::DeviceLifecycle(IPAddress hostIp, char *deviceId)
  : hostIp(hostIp), deviceId(deviceId), isValid(false) {
      createDevicePath();
-     createWatchdogPath();
      createStatePath();
 }
 
@@ -33,15 +31,6 @@ void DeviceLifecycle::createDevicePath() {
     strcpy(devicePath, "/api/devices/");
 
     this->devicePath = devicePath;
-}
-
-void DeviceLifecycle::createWatchdogPath() {
-    char *watchdogPath = new char[80];
-    strcpy(watchdogPath, "/api/devices/");
-    strcat(watchdogPath, this->deviceId);
-    strcat(watchdogPath, "/watchdog/");
-
-    this->watchdogPath = watchdogPath;
 }
 
 void DeviceLifecycle::createStatePath() {
@@ -77,23 +66,6 @@ void DeviceLifecycle::create(char *name, char *type) {
     }
 }
 
-bool DeviceLifecycle::performWatchdog() {
-    request = emptyRequest;
-    response = emptyResponse;
-
-    request.ip = this->hostIp;
-    request.port = ccsPort;
-    request.path = this->watchdogPath;
-
-    http.put(request, response, headers);
-
-    if (response.status == 200) {
-        return true;
-    } else {
-        return false;
-    }
-}
-
 GetState state_state_machine = get_state_start;
 
 unsigned char compareState(float a, float b) {
@@ -126,30 +98,6 @@ bool DeviceLifecycle::getState(float &state) {
 
     if (compareState(nextState, state) != 0) {
         state = nextState;
-        return true;
-    } else {
-        return false;
-    }
-}
-
-bool DeviceLifecycle::setState(float state) {
-    request = emptyRequest;
-    response = emptyResponse;
-
-    request.ip = this->hostIp;
-    // Should be set to the local port we'll be listening on
-    request.port = ccsPort;
-    request.path = this->statePath;
-
-    // Setup the body
-    char body[] = "{\"state\":\"%.2f\", \"source\":\"manual_override\"}";
-    char *requestBody = new char[60];
-    sprintf(requestBody, body, state);
-    request.body = requestBody;
-
-    http.post(request, response, headers);
-
-    if (response.status == 200) {
         return true;
     } else {
         return false;
