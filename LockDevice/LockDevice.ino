@@ -75,7 +75,7 @@ void performStatusCheck(void) {
             if (dlState > 0.0) {
                 Serial.println("Setting to ON/LOCKED");
                 digitalWrite(D5, LOW);
-                digitalWrite(D6, HIGH);
+                digitalWrite(D6, LOW);
             } else {
                 Serial.println("Setting to OFF/UNLOCKED");
                 digitalWrite(D5, HIGH);
